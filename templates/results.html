@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Résultats du Sondage : {{ survey.title }}</h1>
+
+{% if responses %}
+    <ul>
+    {% for response in responses %}
+        <li>Réponse de {{ response.respondent.username }} : {{ response.get_answers() }}</li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p>Aucune réponse pour ce sondage.</p>
+{% endif %}
+{% endblock %}
