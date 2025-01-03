@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ survey.title }}</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>{{ survey.title }}</h1>
+        <p>{{ survey.description }}</p>
+
+        <div class="mt-4">
+            <h2>Résultats du Sondage</h2>
+
+            {% for question, options in results.items() %}
+                <div class="mb-5">
+                    <h3>{{ question }}</h3>
+                    <canvas id="chart-{{ loop.index }}"></canvas>
+
+                    <script>
+                        const ctx{{ loop.index }} = document.getElementById('chart-{{ loop.index }}').getContext('2d');
+                        const data{{ loop.index }} = {
+                            labels: {{ options.keys() | list | tojson }},
+                            datasets: [{
+                                label: 'Nombre de réponses',
+                                data: {{ options.values() | list | tojson }},
+                                borderWidth: 1
+                            }]
+                        };
+
+                        new Chart(ctx{{ loop.index }}, {
+                            type: 'bar',
+                            data: data{{ loop.index }},
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    legend: {
+                                        display: true
+                                    }
+                                }
+                            }
+                        });
+                    </script>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

@@ -419,6 +419,32 @@ def take_survey(survey_id):
     
     return render_template('survey/take.html', survey=survey)
 
+@app.route('/admin/survey/<int:survey_id>/analytics')
+@login_required
+def survey_analytics(survey_id):
+    if not current_user.role == 'admin':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('index'))
+        
+    survey = Survey.query.get_or_404(survey_id)
+    analytics_data = survey.get_analytics_data()
+    
+    return render_template('admin/survey_analytics.html', 
+                         survey=survey,
+                         analytics_data=analytics_data)
+@app.route('/admin/survey/<int:survey_id>/results')
+@login_required
+def admin_survey_results(survey_id):
+    if not current_user.role == 'admin':
+        flash('Accès non autorisé', 'danger')
+        return redirect(url_for('index'))
+        
+    survey = Survey.query.get_or_404(survey_id)
+    detailed_responses = survey.get_all_responses_detailed()
+    
+    return render_template('admin/survey_results.html', 
+                         survey=survey,
+                         responses=detailed_responses)
  
 @app.context_processor
 def utility_processor():
