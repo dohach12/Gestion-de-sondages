@@ -1,3 +1,5 @@
+<<<<<<< Updated upstream
+<<<<<<< Updated upstream
 from flask import Flask, render_template, redirect, url_for, flash, request, jsonify
 from config import Config
 from models import db, User, Survey, Response
@@ -454,3 +456,36 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True)
+=======
+=======
+>>>>>>> Stashed changes
+from flask import Flask, render_template
+
+app = Flask(__name__)
+
+# Route pour la page des sondages
+@app.route("/polls")
+def polls():
+    return render_template("polls.html")
+
+# Route pour la page des avis
+@app.route("/avis")
+def avis():
+    return render_template("avis.html")
+
+# Route pour la page de l'historique
+@app.route("/historique")
+def historique():
+    return render_template("historique.html")
+
+# Route pour la page d'accueil (redirection vers polls)
+@app.route("/")
+def home():
+    return render_template("polls.html")
+
+if __name__ == "__main__":
+    app.run(debug=True)
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
