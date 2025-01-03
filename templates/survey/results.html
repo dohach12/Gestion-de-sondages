@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <h1 class="text-2xl font-bold mb-6">Résultats du sondage : {{ survey.title }}</h1>
+    
+    <!-- Statistiques rapides -->
+    <div class="grid grid-cols-3 gap-4 mb-8">
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="text-lg font-semibold">Nombre total de réponses</h3>
+            <p class="text-3xl font-bold text-blue-600">{{ survey.responses|length }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="text-lg font-semibold">Date de création</h3>
+            <p class="text-lg">{{ survey.created_at.strftime('%d/%m/%Y') }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="text-lg font-semibold">Statut</h3>
+            <p class="text-lg">
+                {% if survey.is_active %}
+                    <span class="text-green-500">Actif</span>
+                {% else %}
+                    <span class="text-red-500">Terminé</span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Liste des réponses -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <div class="p-6">
+            <h2 class="text-xl font-semibold mb-4">Toutes les réponses</h2>
+            
+            <!-- Filtre et recherche -->
+            <div class="mb-4">
+                <input type="text" id="searchInput" 
+                       class="w-full p-2 border rounded" 
+                       placeholder="Rechercher un utilisateur...">
+            </div>
+
+            <!-- Réponses accordéon -->
+            {% for response in responses %}
+            <div class="border rounded mb-4 response-item">
+                <div class="p-4 bg-gray-50 flex justify-between items-center cursor-pointer response-header">
+                    <div>
+                        <h3 class="font-semibold">{{ response.user.username }}</h3>
+                        <p class="text-sm text-gray-600">
+                            Soumis le {{ response.submission_date.strftime('%d/%m/%Y à %H:%M') }}
+                        </p>
+                    </div>
+                    <span class="text-blue-500">▼</span>
+                </div>
+                
+                <div class="p-4 hidden response-content">
+                    <table class="w-full">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-2 text-left">Question</th>
+                                <th class="px-4 py-2 text-left">Réponse</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for answer in response.answers %}
+                            <tr class="border-t">
+                                <td class="px-4 py-2">{{ answer.question }}</td>
+                                <td class="px-4 py-2">
+                                    {% if answer.type == 'rating' %}
+                                        <div class="flex">
+                                            {% for i in range(answer.answer|int) %}
+                                            <span class="text-yellow-400">★</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% else %}
+                                        {{ answer.answer }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+// Fonction pour la recherche
+document.getElementById('searchInput').addEventListener('input', function(e) {
+    const search = e.target.value.toLowerCase();
+    document.querySelectorAll('.response-item').forEach(item => {
+        const username = item.querySelector('h3').textContent.toLowerCase();
+        if (username.includes(search)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+});
+
+// Fonction pour l'accordéon
+document.querySelectorAll('.response-header').forEach(header => {
+    header.addEventListener('click', function() {
+        const content = this.nextElementSibling;
+        const arrow = this.querySelector('span');
+        content.classList.toggle('hidden');
+        arrow.textContent = content.classList.contains('hidden') ? '▼' : '▲';
+    });
+});
+</script>
+{% endblock %}
