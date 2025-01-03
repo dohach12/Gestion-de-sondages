@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Modifier le Sondage</h1>
+
+<form method="POST" id="survey-form">
+    {{ form.hidden_tag() }}
+
+    <div class="form-group">
+        {{ form.title.label }}<br>
+        {{ form.title(class="form-control") }}
+    </div>
+
+    <div class="form-group">
+        {{ form.description.label }}<br>
+        {{ form.description(class="form-control") }}
+    </div>
+
+    <h3>Questions</h3>
+    <div id="questions-container">
+        {% for question in survey.get_questions() %}
+        <div class="question-item mb-4">
+            <input type="hidden" name="question_id[]" value="{{ question['id'] }}">
+            <label>Texte de la question :</label>
+            <input type="text" name="question_text[]" class="form-control" value="{{ question['text'] }}" required>
+
+            <label>Type de question :</label>
+            <select name="question_type[]" class="form-control" onchange="toggleChoices(this)">
+                <option value="text" {% if question['type'] == 'text' %}selected{% endif %}>Texte</option>
+                <option value="choice" {% if question['type'] == 'choice' %}selected{% endif %}>Choix</option>
+                <option value="rating" {% if question['type'] == 'rating' %}selected{% endif %}>Note (1-5)</option>
+            </select>
+
+            <div class="choices-container mt-2" {% if question['type'] != 'choice' %}style="display: none;"{% endif %}>
+                <label>Choix (séparés par une virgule) :</label>
+                <input type="text" name="question_choices[]" class="form-control"
+                       value="{{ ', '.join(question['choices']) if 'choices' in question else '' }}">
+            </div>
+
+            <button type="button" class="btn btn-danger mt-2" onclick="removeQuestion(this)">Supprimer</button>
+        </div>
+        {% endfor %}
+    </div>
+
+    <button type="button" class="btn btn-secondary mt-3" onclick="addQuestion()">Ajouter une Question</button>
+
+    <div class="form-group mt-4">
+        {{ form.end_date.label }}<br>
+        {{ form.end_date(class="form-control") }}
+    </div>
+
+    <button type="submit" class="btn btn-primary">Enregistrer</button>
+</form>
+
+<script>
+    // Ajouter une nouvelle question
+    function addQuestion(text = "", type = "text", choices = "", id = "") {
+        const container = document.getElementById('questions-container');
+        const questionHTML = `
+            <div class="question-item mb-4">
+                <input type="hidden" name="question_id[]" value="${id}">
+                <label>Texte de la question :</label>
+                <input type="text" name="question_text[]" class="form-control" value="${text}" required>
+
+                <label>Type de question :</label>
+                <select name="question_type[]" class="form-control" onchange="toggleChoices(this)">
+                    <option value="text" ${type === 'text' ? 'selected' : ''}>Texte</option>
+                    <option value="choice" ${type === 'choice' ? 'selected' : ''}>Choix</option>
+                    <option value="rating" ${type === 'rating' ? 'selected' : ''}>Note (1-5)</option>
+                </select>
+
+                <div class="choices-container mt-2" ${type !== 'choice' ? 'style=\"display: none;\"' : ''}>
+                    <label>Choix (séparés par une virgule) :</label>
+                    <input type="text" name="question_choices[]" class="form-control" value="${choices}">
+                </div>
+
+                <button type="button" class="btn btn-danger mt-2" onclick="removeQuestion(this)">Supprimer</button>
+            </div>
+        `;
+        container.insertAdjacentHTML('beforeend', questionHTML);
+    }
+
+    // Supprimer une question
+    function removeQuestion(button) {
+        button.parentElement.remove();
+    }
+
+    // Afficher/Cacher la zone des choix selon le type de question
+    function toggleChoices(select) {
+        const choicesContainer = select.parentElement.querySelector('.choices-container');
+        if (select.value === 'choice') {
+            choicesContainer.style.display = 'block';
+        } else {
+            choicesContainer.style.display = 'none';
+            choicesContainer.querySelector('input').value = '';
+        }
+    }
+
+    // Pré-remplir les questions lors de l'édition
+    const questions = JSON.parse('{{ questions|tojson|safe }}');
+    window.onload = function () {
+        questions.forEach((q) => {
+            addQuestion(q.text, q.type, q.choices || "", q.id);
+        });
+    };
+</script>
+
+{% endblock %}
