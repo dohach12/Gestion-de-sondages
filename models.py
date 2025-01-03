@@ -131,6 +131,33 @@ class Survey(db.Model):
                     'submitted_at': response.submitted_at.isoformat()
                 })
         return text_responses
+    def get_all_responses_detailed(self):
+        """Retourne toutes les réponses détaillées pour l'admin"""
+        detailed_responses = []
+        questions = self.get_questions()
+        
+        for response in self.responses:
+            answers = response.get_answers()
+            response_detail = {
+                'user': {
+                    'username': response.respondent.username,
+                    'email': response.respondent.email
+                },
+                'submission_date': response.submitted_at,
+                'answers': []
+            }
+            
+            for question in questions:
+                answer = {
+                    'question': question['text'],
+                    'type': question['type'],
+                    'answer': answers.get(str(question['id']), 'Non répondu')
+                }
+                response_detail['answers'].append(answer)
+                
+            detailed_responses.append(response_detail)
+            
+        return detailed_responses
 
 class Response(db.Model):
     id = db.Column(db.Integer, primary_key=True)
