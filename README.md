@@ -18,9 +18,7 @@ Cette application permet la gestion et la participation à des sondages pour deu
   - Visualisation des réponses
   - Exportation des résultats 
   - Analyse des résultats avec des graphes interactifs
-- **Recherche et filtres** :
-  - Recherche des sondages selon des mots-clés
-  - Filtrage des sondages selon des critères
+
 
 ### User
 - **Participation aux sondages** : Participation et soumission de réponses.
