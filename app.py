@@ -230,6 +230,31 @@ def take_survey(survey_id):
 
     return render_template('survey/take.html', survey=survey)
 
+@app.route('/admin/survey/<int:survey_id>/results')
+@login_required
+def admin_survey_results(survey_id):
+    if not is_admin():
+        flash("Accès non autorisé.", "danger")
+        return redirect(url_for('index'))
+
+    survey = Survey.query.get_or_404(survey_id)
+    responses = [
+        {
+            'user': response.respondent,
+            'submission_date': response.submitted_at,
+            'answers': [
+                {
+                    'question': question['text'],
+                    'type': question['type'],
+                    'answer': response.get_answers().get(str(question['id']), "Non répondu")
+                }
+                for question in survey.get_questions()
+            ]
+        }
+        for response in survey.responses
+    ]
+    return render_template('admin/survey_results.html', survey=survey, responses=responses)
+
 @app.route('/survey/<int:survey_id>/results')
 @login_required
 def view_results(survey_id):
