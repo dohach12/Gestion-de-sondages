@@ -16,6 +16,37 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+@app.route('/')
+def indexhp():
+    return render_template('indexhomepage.html')
+
+@app.route('/contact')
+def contact():
+    return render_template('contact.html')
+
+@app.route('/features')
+def features():
+    return render_template('features.html')
+
+@app.route('/services')
+def services():
+    return render_template('services.html')
+
+@app.route('/404')
+def page_not_found():
+    return render_template('404.html')
+
+@app.route('/faq')
+def faq():
+    return render_template('FAQ.html')
+
+@app.route('/offer')
+def offer():
+    return render_template('offer.html')
+  
+@app.route('/about')
+def offer():
+    return render_template('about.html')
 
 @app.route('/')
 def index():
