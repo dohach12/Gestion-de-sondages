@@ -78,7 +78,7 @@ def login():
     form = LoginForm()
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data).first()
-        if user and user.verify_password(form.password.data):
+        if user and user.password == form.password.data:
             login_user(user)
             next_page = request.args.get('next')
             return redirect(next_page if next_page else url_for('index'))
@@ -110,7 +110,7 @@ def create_survey():
             survey = Survey(
                 title=form.title.data,
                 description=form.description.data,
-                questions=json.dumps(questions_data),
+                questions=questions_data,
                 end_date=form.end_date.data,
                 author_id=current_user.id,
                 is_active=True
@@ -125,8 +125,110 @@ def create_survey():
         except Exception as e:
             db.session.rollback()
             flash(f'Une erreur est survenue: {str(e)}', 'danger')
-            
+            return render_template('survey/create.html', form=form)
+
     return render_template('survey/create.html', form=form)
+
+@app.route('/survey/<int:survey_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_survey(survey_id):
+    survey = Survey.query.get_or_404(survey_id)
+
+    if not is_admin() and survey.author_id != current_user.id:
+        flash("Vous n'êtes pas autorisé à modifier ce sondage.", 'danger')
+        return redirect(url_for('index'))
+
+    form = SurveyForm(obj=survey)
+
+    if form.validate_on_submit():
+        try:
+            questions = []
+            question_texts = request.form.getlist('question_text[]')
+            question_types = request.form.getlist('question_type[]')
+            question_choices = request.form.getlist('question_choices[]')
+            question_ids = request.form.getlist('question_id[]')
+
+            for i in range(len(question_texts)):
+                question = {
+                    "id": question_ids[i] if question_ids[i] else str(i),
+                    "text": question_texts[i],
+                    "type": question_types[i],
+                }
+                if question_types[i] == 'choice':
+                    question["choices"] = [choice.strip() for choice in question_choices[i].split(',') if choice]
+
+                questions.append(question)
+
+            survey.title = form.title.data
+            survey.description = form.description.data
+            survey.questions = json.dumps(questions)
+            survey.end_date = form.end_date.data
+
+            db.session.commit()
+            flash('Sondage mis à jour avec succès!', 'success')
+            return redirect(url_for('index'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Erreur lors de la modification : {str(e)}', 'danger')
+
+    return render_template('survey/edit.html', form=form, survey=survey)
+
+@app.route('/survey/<int:survey_id>/delete')
+@login_required
+def delete_survey(survey_id):
+    survey = Survey.query.get_or_404(survey_id)
+    
+    if survey.author_id != current_user.id and not is_admin():
+        flash('Vous n\'êtes pas autorisé à supprimer ce sondage.', 'danger')
+        return redirect(url_for('index'))
+    
+    try:
+        Response.query.filter_by(survey_id=survey_id).delete()
+        db.session.delete(survey)
+        db.session.commit()
+        flash('Sondage supprimé avec succès.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Une erreur est survenue lors de la suppression.', 'danger')
+        print(f"Erreur de suppression: {str(e)}")
+    
+    return redirect(url_for('index'))
+
+@app.route('/survey/<int:survey_id>/take', methods=['GET', 'POST'])
+@login_required
+def take_survey(survey_id):
+    survey = Survey.query.get_or_404(survey_id)
+    
+    if not survey.is_active or survey.end_date <= datetime.now():
+        flash('Ce sondage n\'est plus disponible.', 'danger')
+        return redirect(url_for('index'))
+
+    if request.method == 'POST':
+        try:
+            answers = {}
+            for question in survey.get_questions():
+                q_id = str(question['id'])
+                answers[q_id] = request.form.get(f'question_{q_id}', '')
+                if not answers[q_id]:
+                    flash('Veuillez répondre à toutes les questions.', 'danger')
+                    return render_template('survey/take.html', survey=survey)
+
+            response = Response(
+                survey_id=survey_id,
+                user_id=current_user.id,
+                answers=json.dumps(answers)
+            )
+
+            db.session.add(response)
+            db.session.commit()
+            
+            flash('Merci pour votre participation!', 'success')
+            return redirect(url_for('view_results', survey_id=survey_id))
+        except Exception as e:
+            db.session.rollback()
+            flash('Une erreur est survenue. Veuillez réessayer.', 'danger')
+
+    return render_template('survey/take.html', survey=survey)
 
 @app.route('/survey/<int:survey_id>/results')
 @login_required
@@ -135,29 +237,42 @@ def view_results(survey_id):
     if not is_admin() and survey.author_id != current_user.id:
         flash('Vous n\'êtes pas autorisé à voir ces résultats.', 'danger')
         return redirect(url_for('index'))
-    
+
     responses = Response.query.filter_by(survey_id=survey_id).all()
     return render_template('survey/results.html', survey=survey, responses=responses)
 
-@app.route('/survey/<int:survey_id>')
+@app.route('/user/dashboard')
 @login_required
-def view_survey(survey_id):
-    survey = Survey.query.get_or_404(survey_id)
-    results = {}
-    
-    for response in survey.responses:
-        answers = response.get_answers()
-        for question, answer in answers.items():
-            if question not in results:
-                results[question] = {}
-                
-            if isinstance(answer, list):
-                for option in answer:
-                    results[question][option] = results[question].get(option, 0) + 1
-            else:
-                results[question][answer] = results[question].get(answer, 0) + 1
+def user_dashboard():
+    if current_user.role == 'admin':
+        return redirect(url_for('admin_dashboard'))
 
-    return render_template('survey/view.html', survey=survey, results=results)
+    my_surveys = Survey.query.filter_by(author_id=current_user.id).order_by(Survey.created_at.desc()).all()
+    available_surveys = Survey.query.filter(
+        Survey.is_active == True,
+        Survey.end_date > datetime.utcnow(),
+        Survey.author_id != current_user.id
+    ).order_by(Survey.created_at.desc()).all()
+
+    return render_template('user/dashboard.html', 
+                           my_surveys=my_surveys, 
+                           available_surveys=available_surveys)
+
+@app.route('/admin/dashboard')
+@login_required
+def admin_dashboard():
+    if not is_admin():
+        flash('Accès non autorisé.', 'danger')
+        return redirect(url_for('index'))
+
+    my_surveys = Survey.query.filter_by(author_id=current_user.id).order_by(Survey.created_at.desc()).all()
+    all_surveys = Survey.query.order_by(Survey.created_at.desc()).all()
+    users = User.query.all()
+
+    return render_template('admin/dashboard.html',
+                           my_surveys=my_surveys,
+                           all_surveys=all_surveys,
+                           users=users)
 
 def is_admin():
     return current_user.is_authenticated and current_user.role == 'admin'
