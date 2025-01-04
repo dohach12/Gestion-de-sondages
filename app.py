@@ -266,6 +266,27 @@ def view_results(survey_id):
     responses = Response.query.filter_by(survey_id=survey_id).all()
     return render_template('survey/results.html', survey=survey, responses=responses)
 
+# Routes d'analyse
+@app.route('/survey/<int:survey_id>/analytics')
+@login_required
+def survey_analytics(survey_id):
+    survey = Survey.query.get_or_404(survey_id)
+    if survey.author_id != current_user.id and current_user.role != 'admin':
+        flash('You cannot view these analytics.', 'danger')
+        return redirect(url_for('index'))
+    responses = Response.query.filter_by(survey_id=survey_id).all()
+    # Traitement des données pour l'analyse
+    analytics_data = process_analytics(responses)
+    return render_template('survey/analytics.html', 
+                         survey=survey, 
+                         responses=responses,
+                         analytics=analytics_data)
+
+def process_analytics(responses):
+    # Logique de traitement des données pour l'analyse
+    # À implémenter selon vos besoins
+    return {}
+
 @app.route('/survey/<int:survey_id>/results_graph')
 @login_required
 def view_results_graph(survey_id):
