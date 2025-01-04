@@ -241,6 +241,37 @@ def view_results(survey_id):
     responses = Response.query.filter_by(survey_id=survey_id).all()
     return render_template('survey/results.html', survey=survey, responses=responses)
 
+@app.route('/survey/<int:survey_id>/results_graph')
+@login_required
+def view_results_graph(survey_id):
+    survey = Survey.query.get_or_404(survey_id)
+    if not is_admin() and survey.author_id != current_user.id:
+        flash('Vous n\'êtes pas autorisé à voir ces résultats.', 'danger')
+        return redirect(url_for('index'))
+
+    responses = Response.query.filter_by(survey_id=survey_id).all()
+
+    # Préparation des données pour les graphiques
+    questions = json.loads(survey.questions)
+    results = {q['text']: {} for q in questions}
+
+    for response in responses:
+        answers = json.loads(response.answers)
+        for question in questions:
+            q_id = str(question['id'])
+            q_text = question['text']
+            answer = answers.get(q_id, None)
+            if not answer:
+                continue
+            if isinstance(answer, list):  # Gestion des choix multiples
+                for option in answer:
+                    results[q_text][option] = results[q_text].get(option, 0) + 1
+            else:
+                results[q_text][answer] = results[q_text].get(answer, 0) + 1
+
+    return render_template('survey/results_graph.html', survey=survey, results=results)
+
+
 @app.route('/user/dashboard')
 @login_required
 def user_dashboard():
