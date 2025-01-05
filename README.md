@@ -66,4 +66,10 @@ Cette application permet la gestion et la participation à des sondages pour deu
    http://127.0.0.1:5000
    ```
 
+---
 
+## Connexion 
+
+Pour accéder à l'espace administrateur, vous pouvez vous inscrire. Ou bien si vous voulez visualiser des résultats de sondage, vous pouvez vous authentifiez avec les identifiants suivants:
+- **email**: administrateur@gmail.com
+- **password**: admin
