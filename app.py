@@ -266,26 +266,6 @@ def view_results(survey_id):
     responses = Response.query.filter_by(survey_id=survey_id).all()
     return render_template('survey/results.html', survey=survey, responses=responses)
 
-# Routes d'analyse
-@app.route('/survey/<int:survey_id>/analytics')
-@login_required
-def survey_analytics(survey_id):
-    survey = Survey.query.get_or_404(survey_id)
-    if survey.author_id != current_user.id and current_user.role != 'admin':
-        flash('You cannot view these analytics.', 'danger')
-        return redirect(url_for('index'))
-    responses = Response.query.filter_by(survey_id=survey_id).all()
-    # Traitement des données pour l'analyse
-    analytics_data = process_analytics(responses)
-    return render_template('survey/analytics.html', 
-                         survey=survey, 
-                         responses=responses,
-                         analytics=analytics_data)
-
-def process_analytics(responses):
-    # Logique de traitement des données pour l'analyse
-    # À implémenter selon vos besoins
-    return {}
 
 @app.route('/survey/<int:survey_id>/results_graph')
 @login_required
@@ -350,6 +330,66 @@ def admin_dashboard():
                            my_surveys=my_surveys,
                            all_surveys=all_surveys,
                            users=users)
+
+# Routes de profil utilisateur
+@app.route('/profile', methods=['GET', 'POST'])
+@login_required
+def profile():
+    form = ProfileForm()
+    if form.validate_on_submit():
+        if current_user.password == form.current_password.data:
+            current_user.email = form.email.data
+            if form.new_password.data:
+                current_user.password = form.new_password.data
+            db.session.commit()
+            flash('Profil mis à jour avec succès!', 'success')
+            return redirect(url_for('profile'))
+        else:
+            flash('Mot de passe actuel incorrect.', 'danger')
+    
+    # Pré-remplir l'email
+    if request.method == 'GET':
+        form.email.data = current_user.email
+    
+    # Obtenir les statistiques
+    surveys_created = Survey.query.filter_by(author_id=current_user.id).count()
+    surveys_participated = Response.query.filter_by(user_id=current_user.id).count()
+    
+    return render_template('user/profile.html', 
+                         form=form,
+                         surveys_created=surveys_created,
+                         surveys_participated=surveys_participated)
+
+# Routes de recherche et filtrage
+@app.route('/search')
+@login_required
+def search_surveys():
+    form = SearchForm()
+    keyword = request.args.get('keyword', '')
+    surveys = Survey.query.filter(Survey.title.contains(keyword)).all()
+    return render_template('survey/search.html', surveys=surveys, form=form)
+
+# Routes d'analyse
+@app.route('/survey/<int:survey_id>/analytics')
+@login_required
+def survey_analytics(survey_id):
+    survey = Survey.query.get_or_404(survey_id)
+    if survey.author_id != current_user.id and current_user.role != 'admin':
+        flash('You cannot view these analytics.', 'danger')
+        return redirect(url_for('index'))
+    responses = Response.query.filter_by(survey_id=survey_id).all()
+    # Traitement des données pour l'analyse
+    analytics_data = process_analytics(responses)
+    return render_template('survey/analytics.html', 
+                         survey=survey, 
+                         responses=responses,
+                         analytics=analytics_data)
+
+def process_analytics(responses):
+    # Logique de traitement des données pour l'analyse
+    # À implémenter selon vos besoins
+    return {}
+
 
 def is_admin():
     return current_user.is_authenticated and current_user.role == 'admin'
