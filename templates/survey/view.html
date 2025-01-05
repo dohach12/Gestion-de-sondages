@@ -1,51 +1,128 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ survey.title }}</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-    <div class="container mt-5">
-        <h1>{{ survey.title }}</h1>
-        <p>{{ survey.description }}</p>
+<!-- templates/admin/survey_analytics.html -->
+{% extends "base.html" %}
 
-        <div class="mt-4">
-            <h2>Résultats du Sondage</h2>
+{% block content %}
+<div class="container mx-auto px-4 py-6">
+    <h1 class="text-2xl font-bold mb-6">Analyse du sondage: {{ survey.title }}</h1>
 
-            {% for question, options in results.items() %}
-                <div class="mb-5">
-                    <h3>{{ question }}</h3>
-                    <canvas id="chart-{{ loop.index }}"></canvas>
-
-                    <script>
-                        const ctx{{ loop.index }} = document.getElementById('chart-{{ loop.index }}').getContext('2d');
-                        const data{{ loop.index }} = {
-                            labels: {{ options.keys() | list | tojson }},
-                            datasets: [{
-                                label: 'Nombre de réponses',
-                                data: {{ options.values() | list | tojson }},
-                                borderWidth: 1
-                            }]
-                        };
-
-                        new Chart(ctx{{ loop.index }}, {
-                            type: 'bar',
-                            data: data{{ loop.index }},
-                            options: {
-                                responsive: true,
-                                plugins: {
-                                    legend: {
-                                        display: true
-                                    }
-                                }
-                            }
-                        });
-                    </script>
-                </div>
-            {% endfor %}
+    <!-- Statistiques générales -->
+    <div class="grid grid-cols-3 gap-4 mb-8">
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="text-lg font-semibold">Total des réponses</h3>
+            <p class="text-3xl font-bold text-blue-600">{{ survey.get_response_count() }}</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="text-lg font-semibold">Taux de participation</h3>
+            <p class="text-3xl font-bold text-green-600">{{ survey.completion_rate }}%</p>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow">
+            <h3 class="text-lg font-semibold">Statut</h3>
+            <p class="text-xl">
+                {% if survey.is_active %}
+                    <span class="text-green-500">Actif</span>
+                {% else %}
+                    <span class="text-red-500">Terminé</span>
+                {% endif %}
+            </p>
         </div>
     </div>
-</body>
-</html>
+
+    <!-- Graphiques -->
+    <div class="bg-white p-6 rounded-lg shadow mb-8">
+        <h2 class="text-xl font-semibold mb-4">Analyse des questions</h2>
+        <canvas id="surveyAnalytics"></canvas>
+    </div>
+
+    <!-- Tableau détaillé des réponses -->
+    <div class="bg-white p-6 rounded-lg shadow">
+        <h2 class="text-xl font-semibold mb-4">Détail des réponses</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full table-auto">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="px-4 py-2">Utilisateur</th>
+                        <th class="px-4 py-2">Date</th>
+                        {% for question in survey.get_questions() %}
+                        <th class="px-4 py-2">{{ question.text }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for response in survey.responses %}
+                    <tr class="border-t">
+                        <td class="px-4 py-2">{{ response.respondent.username }}</td>
+                        <td class="px-4 py-2">{{ response.submitted_at.strftime('%d/%m/%Y') }}</td>
+                        {% for answer in response.get_answers().values() %}
+                        <td class="px-4 py-2">{{ answer }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- Scripts pour les graphiques -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Ajout de default('{}') pour éviter que analytics_data soit undefined
+    const analyticsData = {{ analytics_data|tojson|default('{}')|safe }};
+    const ctx = document.getElementById('surveyAnalytics').getContext('2d');
+
+    if (analyticsData && analyticsData.questions) {
+        analyticsData.questions.forEach((question, index) => {
+            const chartContainer = document.createElement('div');
+            chartContainer.className = 'mb-8';
+            chartContainer.innerHTML = `
+                <h3 class="text-lg font-semibold mb-4">${question.text}</h3>
+                <canvas id="chart${index}"></canvas>
+            `;
+            ctx.canvas.parentNode.appendChild(chartContainer);
+
+            const chartCtx = document.getElementById(`chart${index}`);
+            if (question.type === 'choice') {
+                new Chart(chartCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: question.answers.map(a => a.name),
+                        datasets: [{
+                            data: question.answers.map(a => a.count),
+                            backgroundColor: [
+                                '#FF6384',
+                                '#36A2EB',
+                                '#FFCE56',
+                                '#4BC0C0',
+                                '#9966FF'
+                            ]
+                        }]
+                    }
+                });
+            } else if (question.type === 'rating') {
+                new Chart(chartCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: question.answers.map(a => `Note ${a.rating}`),
+                        datasets: [{
+                            label: 'Nombre de réponses',
+                            data: question.answers.map(a => a.count),
+                            backgroundColor: '#36A2EB'
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    }
+});
+</script>
+{% endblock %}
+
