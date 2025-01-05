@@ -1,5 +1,5 @@
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, TextAreaField, SubmitField, SelectField, DateTimeField, EmailField, HiddenField
+from wtforms import StringField, PasswordField, TextAreaField, SubmitField, SelectField, DateTimeField, EmailField
 from wtforms.validators import DataRequired, Length, Email, EqualTo
 import json
 from wtforms.validators import ValidationError
@@ -29,32 +29,20 @@ class LoginForm(FlaskForm):
 class SurveyForm(FlaskForm):
     title = StringField('Titre du sondage', validators=[DataRequired()])
     description = TextAreaField('Description')
-    questions = HiddenField('Questions', validators=[DataRequired()])
+    questions = TextAreaField('Questions (format JSON)', validators=[DataRequired()])
     end_date = DateTimeField('Date de fin', format='%Y-%m-%d %H:%M', validators=[DataRequired()])
-    questions_json = HiddenField('Questions JSON')
     submit = SubmitField('Créer le sondage')
 
-    def validate_questions(form, field):
-        print(f"Data reçue pour questions: {field.data}")  # Debug
-        if isinstance(field.data, str):
-            try:
-                questions = json.loads(field.data)
-                if not questions_data:
-                    raise ValidationError('Au moins une question est requise')
-            except json.JSONDecodeError:
-                raise ValidationError("Format de questions invalide.")
-        elif isinstance(field.data, list):
-            questions = field.data
-        else:
-            raise ValidationError("Format de questions inconnu.")
-
-        if not questions or not isinstance(questions, list):
-            raise ValidationError("Veuillez ajouter au moins une question valide.")
-
-        for question in questions:
-            if 'text' not in question or 'type' not in question:
-                raise ValidationError("Chaque question doit contenir du texte et un type.")
-
+    def validate_questions(self, field):
+        try:
+            questions = json.loads(field.data)
+            if not isinstance(questions, list):
+                raise ValidationError("Les questions doivent être une liste JSON.")
+            for question in questions:
+                if 'text' not in question or 'type' not in question:
+                    raise ValidationError("Chaque question doit avoir un champ 'text' et 'type'.")
+        except json.JSONDecodeError:
+            raise ValidationError("Format JSON invalide. Veuillez corriger les erreurs de syntaxe.")
 
 class ResponseForm(FlaskForm):
     answers = TextAreaField('Your Answers', validators=[DataRequired()])

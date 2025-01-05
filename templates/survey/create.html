@@ -6,11 +6,11 @@
         <div class="card-header">
             <h2><i class="fas fa-plus-circle"></i> Créer un nouveau sondage</h2>
         </div>
-
+        
         <div class="card-body">
-            <form method="POST" action="{{ url_for('create_survey') }}" id="surveyForm" onsubmit="return validateForm()">
+            <form method="POST" id="surveyForm" onsubmit="return validateForm()">
                 {{ form.hidden_tag() }}
-
+                
                 <div class="form-group">
                     {{ form.title.label(class="form-label") }}
                     {{ form.title(class="form-control") }}
@@ -37,7 +37,7 @@
                     </button>
                 </div>
 
-                {{ form.questions(id="questionsJson", type="hidden") }}
+                {{ form.questions(id="questionsJson") }}
 
                 <div class="form-group">
                     {{ form.end_date.label(class="form-label") }}
@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', function() {
         typeSelect.addEventListener('change', function() {
             const choicesContainer = questionDiv.querySelector('.choices-container');
             choicesContainer.style.display = this.value === 'choice' ? 'block' : 'none';
-
+            
             if (this.value === 'choice') {
                 const choiceInputs = questionDiv.querySelector('.choice-inputs');
                 if (choiceInputs.children.length === 0) {
@@ -181,28 +181,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         questionsJsonInput.value = JSON.stringify(questions);
-        console.log('Questions JSON:', questionsJsonInput.value);
     }
 
     // Ajouter les écouteurs d'événements
     addQuestionBtn.addEventListener('click', addQuestion);
-    document.addEventListener('input', function(e) {
-    if (e.target.closest('.question-card')) {
-        updateQuestionsJson();
-    }
-});
-
-document.addEventListener('change', function(e) {
-    if (e.target.closest('.question-card')) {
-        updateQuestionsJson();
-    }
-});
     questionContainer.addEventListener('input', updateQuestionsJson);
     questionContainer.addEventListener('change', updateQuestionsJson);
 
     // Fonction de validation du formulaire
     window.validateForm = function() {
-        updateQuestionsJson();
         const questions = JSON.parse(questionsJsonInput.value || '[]');
         if (questions.length === 0) {
             alert('Veuillez ajouter au moins une question.');
@@ -278,4 +265,4 @@ document.addEventListener('change', function(e) {
     margin-top: 0.25rem;
 }
 </style>
-{% endblock %}
+{% endblock %} 

@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container">
+    <div class="survey-results">
+        <h1>{{ survey.title }} - Résultats</h1>
+        <p class="survey-description">{{ survey.description }}</p>
+
+        <!-- Statistiques agrégées -->
+        <div class="results-section">
+            <h2>Statistiques globales</h2>
+            <p>Nombre total de réponses: {{ individual_responses|length }}</p>
+            
+            {% for question in survey.get_questions() %}
+            <div class="result-card">
+                <h3>{{ question.text }}</h3>
+                {% if question.type == 'rating' %}
+                    <div class="rating-stats">
+                        {% for rating in range(1, 6) %}
+                        <div class="rating-bar">
+                            <span class="rating-label">{{ rating }}</span>
+                            <div class="progress">
+                                {% set count = aggregated_results.get(question.id, {}).get(rating|string, 0) %}
+                                {% set total_responses = individual_responses|length %}
+                                {% set percentage = (count / total_responses * 100)|round|int if total_responses > 0 else 0 %}
+                                <div class="progress-outer">
+                                    <div class="progress-inner" @style="'width:'+ (percentage) + '%'">
+                                        <span class="progress-text">{{ count }} ({{ percentage }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% elif question.type == 'choice' %}
+                    <div class="choice-stats">
+                        {% for choice in question.choices %}
+                        <div class="choice-bar">
+                            <span class="choice-label">{{ choice }}</span>
+                            <div class="progress">
+                                {% set count = aggregated_results.get(question.id, {}).get(choice, 0) %}
+                                {% set total_responses = individual_responses|length %}
+                                {% set percentage = (count / total_responses * 100)|round|int if total_responses > 0 else 0 %}
+                                <div class="progress-outer">
+                                    <div class="progress-inner" style="width: {{ percentage }}%">
+                                        <span class="progress-text">{{ count }} ({{ percentage }}%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Réponses individuelles (visible uniquement par les admins) -->
+        {% if current_user.role == 'admin' %}
+        <div class="results-section">
+            <h2>Réponses individuelles</h2>
+            {% for response in individual_responses %}
+            <div class="individual-response-card">
+                <div class="response-header">
+                    <span class="respondent">{{ response.username }}</span>
+                    <span class="response-date">{{ response.submitted_at.strftime('%d/%m/%Y %H:%M') }}</span>
+                </div>
+                
+                {% for question in survey.get_questions() %}
+                <div class="response-item">
+                    <h4>{{ question.text }}</h4>
+                    <p class="response-answer">
+                        {% set answer = response.answers.get(question.id|string) %}
+                        {% if question.type == 'rating' %}
+                            <span class="rating">{{ answer }}/5</span>
+                        {% elif question.type == 'choice' %}
+                            {{ answer }}
+                        {% else %}
+                            {{ answer }}
+                        {% endif %}
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if current_user.role == 'admin' %}
+        <div class="export-section">
+            <a href="{{ url_for('export_survey_results', survey_id=survey.id) }}" class="btn btn-primary">
+                Exporter les résultats en CSV
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.survey-results {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem 0;
+}
+
+.result-card {
+    background: white;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.results-section {
+    margin-bottom: 3rem;
+}
+
+.progress {
+    height: 25px;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+    margin: 0.5rem 0;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: var(--primary-color);
+    color: white;
+    text-align: center;
+    line-height: 25px;
+    transition: width 0.3s ease;
+}
+
+.individual-response-card {
+    background: white;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.response-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #eee;
+}
+
+.respondent {
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.response-date {
+    color: #666;
+}
+
+.response-item {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+}
+
+.response-item:last-child {
+    border-bottom: none;
+}
+
+.response-item h4 {
+    color: var(--secondary-color);
+    margin-bottom: 0.5rem;
+}
+
+.response-answer {
+    margin: 0;
+    padding-left: 1rem;
+}
+
+.rating {
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.progress-outer {
+    width: 100%;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.progress-inner {
+    background-color: var(--primary-color);
+    height: 25px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: width 0.3s ease;
+    min-width: 2em;
+}
+
+.progress-text {
+    color: white;
+    padding: 0 8px;
+    white-space: nowrap;
+}
+</style>
+{% endblock %}

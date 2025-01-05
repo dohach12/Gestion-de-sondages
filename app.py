@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for, flash, request, jsonify,Response
+from flask import Flask, render_template, redirect, url_for, flash, request, jsonify, Response as FlaskResponse
 from config import Config
 from models import db, User, Survey, Response
 from forms import (RegistrationForm, LoginForm, SurveyForm, ResponseForm, 
@@ -6,10 +6,8 @@ from forms import (RegistrationForm, LoginForm, SurveyForm, ResponseForm,
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from datetime import datetime
 import json
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import io, base64
+import csv
+import io
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -100,46 +98,29 @@ def logout():
 # Routes de gestion des sondages
 from datetime import datetime
 
-
-# Routes de gestion des sondages
-from datetime import datetime
-
-# Routes de gestion des sondages
-from datetime import datetime
-
-
 @app.route('/survey/new', methods=['GET', 'POST'])
 @login_required
 def create_survey():
     form = SurveyForm()
-
-    # 1. Validation du formulaire
     if form.validate_on_submit():
         try:
-            questions_data = json.loads(form.questions.data)
+            # Récupération des questions du formulaire
+            questions_data = form.questions.data if form.questions.data else []
 
-            print(questions_data)  # Debug : Afficher les données reçues dans la console
-
-            # Si questions_data n'est pas une liste ou est vide
-            if not isinstance(questions_data, list) or not questions_data:
-                flash('Veuillez ajouter au moins une question valide.', 'danger')
+            if not questions_data:
+                flash('Veuillez ajouter au moins une question.', 'danger')
                 return render_template('survey/create.html', form=form)
 
-            # 3. Vérification du titre (problème zone bleue)
-            if not form.title.data:
-                flash('Veuillez renseigner le titre du sondage.', 'danger')
-                return render_template('survey/create.html', form=form)
-
-            # 4. Validation de la date de fin
+            # Validation de la date de fin
             if form.end_date.data <= datetime.now():
                 flash('La date de fin doit être ultérieure à la date actuelle.', 'danger')
                 return render_template('survey/create.html', form=form)
 
-            # 5. Création du sondage
+            # Création du sondage
             survey = Survey(
                 title=form.title.data,
                 description=form.description.data,
-                questions=questions_data,
+                questions=questions_data,  # Déjà en format JSON
                 end_date=form.end_date.data,
                 author_id=current_user.id,
                 is_active=True
@@ -156,7 +137,7 @@ def create_survey():
             flash(f'Une erreur est survenue: {str(e)}', 'danger')
             return render_template('survey/create.html', form=form)
 
-    # Si le formulaire est invalide ou méthode GET
+    # Si le formulaire n'est pas valide ou méthode GET
     return render_template('survey/create.html', form=form)
 
 
@@ -171,35 +152,38 @@ def edit_survey(survey_id):
 
     form = SurveyForm(obj=survey)
 
-    # Récupération des questions existantes
-    questions = survey.get_questions()
-
     if form.validate_on_submit():
         try:
-            questions_data = request.form.get('questions')
-            questions = json.loads(questions_data) if questions_data else []
+            questions = []
+            question_texts = request.form.getlist('question_text[]')
+            question_types = request.form.getlist('question_type[]')
+            question_choices = request.form.getlist('question_choices[]')
+            question_ids = request.form.getlist('question_id[]')
 
-            if not questions:
-                flash('Le sondage doit contenir au moins une question.', 'danger')
-                return render_template('survey/edit.html', form=form, survey=survey, questions=questions)
+            for i in range(len(question_texts)):
+                question = {
+                    "id": question_ids[i] if question_ids[i] else str(i),
+                    "text": question_texts[i],
+                    "type": question_types[i],
+                }
+                if question_types[i] == 'choice':
+                    question["choices"] = [choice.strip() for choice in question_choices[i].split(',') if choice]
+
+                questions.append(question)
 
             survey.title = form.title.data
             survey.description = form.description.data
-            survey.questions = questions
+            survey.questions = json.dumps(questions)
             survey.end_date = form.end_date.data
 
             db.session.commit()
             flash('Sondage mis à jour avec succès!', 'success')
             return redirect(url_for('index'))
-
-        except json.JSONDecodeError:
-            flash("Format de questions invalide.", 'danger')
         except Exception as e:
             db.session.rollback()
             flash(f'Erreur lors de la modification : {str(e)}', 'danger')
 
-    # Passe les questions au template même si la méthode est GET
-    return render_template('survey/edit.html', form=form, survey=survey, questions=questions)
+    return render_template('survey/edit.html', form=form, survey=survey)
 
 
 
@@ -213,7 +197,7 @@ def delete_survey(survey_id):
         return redirect(url_for('index'))
     
     try:
-
+        # Supprimer d'abord les réponses associées
         Response.query.filter_by(survey_id=survey_id).delete()
         db.session.delete(survey)
         db.session.commit()
@@ -241,11 +225,11 @@ def profile():
         else:
             flash('Mot de passe actuel incorrect.', 'danger')
     
-
+    # Pré-remplir l'email
     if request.method == 'GET':
         form.email.data = current_user.email
     
-
+    # Obtenir les statistiques
     surveys_created = Survey.query.filter_by(author_id=current_user.id).count()
     surveys_participated = Response.query.filter_by(user_id=current_user.id).count()
     
@@ -263,7 +247,7 @@ def search_surveys():
     surveys = Survey.query.filter(Survey.title.contains(keyword)).all()
     return render_template('survey/search.html', surveys=surveys, form=form)
 
-
+# Routes d'analyse
 @app.route('/survey/<int:survey_id>/analytics')
 @login_required
 def survey_analytics(survey_id):
@@ -272,6 +256,7 @@ def survey_analytics(survey_id):
         flash('You cannot view these analytics.', 'danger')
         return redirect(url_for('index'))
     responses = Response.query.filter_by(survey_id=survey_id).all()
+    # Traitement des données pour l'analyse
     analytics_data = process_analytics(responses)
     return render_template('survey/analytics.html', 
                          survey=survey, 
@@ -279,13 +264,14 @@ def survey_analytics(survey_id):
                          analytics=analytics_data)
 
 def process_analytics(responses):
-
+    # Logique de traitement des données pour l'analyse
+    # À implémenter selon vos besoins
     return {}
 
 def is_admin():
     return current_user.is_authenticated and current_user.role == 'admin'
 
-
+# Ajout des routes pour les dashboards
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():
@@ -293,7 +279,7 @@ def admin_dashboard():
         flash('Accès non autorisé.', 'danger')
         return redirect(url_for('index'))
     
-
+    # Récupérer tous les sondages avec leurs auteurs
     my_surveys = Survey.query.filter_by(author_id=current_user.id).order_by(Survey.created_at.desc()).all()
     all_surveys = Survey.query.order_by(Survey.created_at.desc()).all()
     users = User.query.all()
@@ -308,7 +294,8 @@ def admin_dashboard():
 def user_dashboard():
     if current_user.role == 'admin':
         return redirect(url_for('admin_dashboard'))
-
+    
+    # Récupérer les sondages de l'utilisateur et les sondages disponibles
     my_surveys = Survey.query.filter_by(author_id=current_user.id).order_by(Survey.created_at.desc()).all()
     available_surveys = Survey.query.filter(
         Survey.is_active == True,
@@ -316,104 +303,95 @@ def user_dashboard():
         Survey.author_id != current_user.id
     ).order_by(Survey.created_at.desc()).all()
     
+    # Récupérer les réponses de l'utilisateur actuel
+    my_responses = Response.query.filter_by(user_id=current_user.id).all()
+
     return render_template('user/dashboard.html',
                          my_surveys=my_surveys,
-                         available_surveys=available_surveys)
+                         available_surveys=available_surveys,
+                         my_responses=my_responses)
 
 # Ajout d'une route pour voir les résultats d'un sondage
 @app.route('/survey/<int:survey_id>/results')
 @login_required
 def view_results(survey_id):
     survey = Survey.query.get_or_404(survey_id)
+    if survey.author_id != current_user.id and not current_user.role == 'admin':
+        flash('Vous n\'êtes pas autorisé à voir ces résultats.', 'danger')
+        return redirect(url_for('index'))
+    
+    # Get all responses with their respondents
+    responses = Response.query.filter_by(survey_id=survey_id)\
+        .join(User, Response.user_id == User.id)\
+        .add_columns(User.username)\
+        .all()
+    
+    # Aggregate results
+    aggregated_results = {}
+    individual_responses = []
 
-    # Vérification des autorisations
-    if survey.author_id != current_user.id and current_user.role != 'admin':
-        flash("Vous n'avez pas l'autorisation de voir ces résultats.", 'danger')
-        return redirect(url_for('dashboard'))
+    for response, username in responses:
+        answers = response.get_answers()
+        
+        # Store individual response data
+        individual_responses.append({
+            'username': username,
+            'submitted_at': response.submitted_at,
+            'answers': answers
+        })
 
-    # Récupérer les données d'analytics
-    analytics_data = survey.get_analytics_data()
+        # Aggregate answers for statistics
+        for question_id, answer in answers.items():
+            if question_id not in aggregated_results:
+                aggregated_results[question_id] = {}
+            
+            if isinstance(answer, list):
+                for option in answer:
+                    aggregated_results[question_id][option] = aggregated_results[question_id].get(option, 0) + 1
+            else:
+                aggregated_results[question_id][answer] = aggregated_results[question_id].get(answer, 0) + 1
 
-    # Récupérer les réponses du sondage
-    responses = survey.responses  # Correct way to get responses
-
-    # Générer les graphiques pour chaque question
-    graphs = []
-    for question in analytics_data['questions']:
-        if question['type'] in ['choice', 'rating']:
-            graph = create_bar_chart(question['text'], question['answers'])
-            graphs.append(graph)
-
-    # Rendu du template avec les données nécessaires
-    return render_template('admin/survey/results.html', survey=survey, responses=responses, graphs=graphs)
-
-
-
-
-def create_bar_chart(question_text, answers):
-    labels = [answer['name'] if 'name' in answer else answer['rating'] for answer in answers]
-    counts = [answer['count'] for answer in answers]
-
-    plt.figure(figsize=(8, 6))
-    plt.bar(labels, counts)
-    plt.title(question_text)
-    plt.xlabel('Options')
-    plt.ylabel('Nombre de réponses')
-    plt.xticks(rotation=30)
-
-    # Sauvegarde du graphique en mémoire
-    from io import BytesIO
-    import base64
-    buf = BytesIO()
-    plt.savefig(buf, format='png')
-    buf.seek(0)
-    encoded_image = base64.b64encode(buf.getvalue()).decode('utf-8')
-    buf.close()
-    plt.close()
-
-    return f'data:image/png;base64,{encoded_image}'
+    return render_template('survey/results.html', 
+                         survey=survey, 
+                         aggregated_results=aggregated_results,
+                         individual_responses=individual_responses)
 
 
 @app.route('/survey/<int:survey_id>')
 @login_required
 def view_survey(survey_id):
     survey = Survey.query.get_or_404(survey_id)
-    if not is_admin() and survey.author_id != current_user.id:
-        flash('Vous n\'êtes pas autorisé à voir ces résultats.', 'danger')
-        return redirect(url_for('index'))
 
-    responses = Response.query.filter_by(survey_id=survey_id).all()
+    # Récupérer les réponses associées au sondage
+    responses = survey.responses
 
-    if isinstance(survey.questions, list):
-        questions = survey.questions
-    elif isinstance(survey.questions, str):
-        questions = json.loads(survey.questions)
-    else:
-        questions = []
-
-    results = {q['text']: {} for q in questions}
+    # Agrégation des résultats
+    results = {}
 
     for response in responses:
-        answers = json.loads(response.answers)
-        for question in questions:
-            q_id = str(question['id'])
-            q_text = question['text']
-            answer = answers.get(q_id, None)
-            if not answer:
-                continue
+        answers = response.get_answers()  # Récupérer les réponses JSON
+
+        # Parcourir chaque question et réponse
+        for question, answer in answers.items():
+            # Si la réponse est une liste (choix multiples)
             if isinstance(answer, list):
                 for option in answer:
-                    if option:
-                        results[q_text][option] = results[q_text].get(option, 0) + 1
+                    if question not in results:
+                        results[question] = {}
+                    if option not in results[question]:
+                        results[question][option] = 0
+                    results[question][option] += 1
             else:
-                if answer:
-                    results[q_text][answer] = results[q_text].get(answer, 0) + 1
+                # Gestion des réponses simples
+                if question not in results:
+                    results[question] = {}
+                if answer not in results[question]:
+                    results[question][answer] = 0
+                results[question][answer] += 1
 
-    # Ajout d'un dictionnaire vide par défaut si analytics_data est absent
-    analytics_data = results or {}
-
-    return render_template('survey/view.html', survey=survey, results=results, analytics_data=analytics_data)
-
+    return render_template('survey/view.html',
+                           survey=survey,
+                           results=results)
 
 
 @app.route('/survey/<int:survey_id>/take', methods=['GET', 'POST'])
@@ -480,6 +458,44 @@ def utility_processor():
     def get_range(start, end):
         return list(range(start, end + 1))
     return dict(get_range=get_range)
+
+@app.route('/survey/<int:survey_id>/export')
+@login_required
+def export_survey_results(survey_id):
+    survey = Survey.query.get_or_404(survey_id)
+    if survey.author_id != current_user.id and not current_user.role == 'admin':
+        flash('Vous n\'êtes pas autorisé à exporter ces résultats.', 'danger')
+        return redirect(url_for('index'))
+
+    # Préparer les données pour l'exportation
+    responses = Response.query.filter_by(survey_id=survey_id).all()
+    questions = survey.get_questions()
+
+    # Créer une réponse CSV
+    def generate_csv():
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Écrire l'en-tête
+        header = ['Username', 'Submitted At'] + [q['text'] for q in questions]
+        writer.writerow(header)
+
+        # Écrire les données
+        for response in responses:
+            row = [response.respondent.username, response.submitted_at.strftime('%d/%m/%Y %H:%M')]
+            answers = response.get_answers()
+            for question in questions:
+                answer = answers.get(str(question['id']), '')
+                if isinstance(answer, list):
+                    answer = ', '.join(answer)
+                row.append(answer)
+            writer.writerow(row)
+
+        # Retourner le contenu du StringIO
+        return output.getvalue()
+
+    csv_data = generate_csv()
+    return FlaskResponse(csv_data, mimetype='text/csv', headers={"Content-Disposition": f"attachment;filename=survey_{survey_id}_results.csv"})
 
 if __name__ == '__main__':
     with app.app_context():

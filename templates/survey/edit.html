@@ -42,8 +42,6 @@
         {% endfor %}
     </div>
 
-    <input type="hidden" name="questions" id="questions-field">
-
     <button type="button" class="btn btn-secondary mt-3" onclick="addQuestion()">Ajouter une Question</button>
 
     <div class="form-group mt-4">
@@ -56,24 +54,23 @@
 
 <script>
     // Ajouter une nouvelle question
-    function addQuestion(text = "", type = "text", choices = "", id = "") {
+    function addQuestion() {
         const container = document.getElementById('questions-container');
         const questionHTML = `
             <div class="question-item mb-4">
-                <input type="hidden" name="question_id[]" value="${id}">
                 <label>Texte de la question :</label>
-                <input type="text" name="question_text[]" class="form-control" value="${text}" required>
+                <input type="text" name="question_text[]" class="form-control" required>
 
                 <label>Type de question :</label>
                 <select name="question_type[]" class="form-control" onchange="toggleChoices(this)">
-                    <option value="text" ${type === 'text' ? 'selected' : ''}>Texte</option>
-                    <option value="choice" ${type === 'choice' ? 'selected' : ''}>Choix</option>
-                    <option value="rating" ${type === 'rating' ? 'selected' : ''}>Note (1-5)</option>
+                    <option value="text">Texte</option>
+                    <option value="choice">Choix</option>
+                    <option value="rating">Note (1-5)</option>
                 </select>
 
-                <div class="choices-container mt-2" ${type !== 'choice' ? 'style=\"display: none;\"' : ''}>
+                <div class="choices-container mt-2" style="display: none;">
                     <label>Choix (séparés par une virgule) :</label>
-                    <input type="text" name="question_choices[]" class="form-control" value="${choices}">
+                    <input type="text" name="question_choices[]" class="form-control">
                 </div>
 
                 <button type="button" class="btn btn-danger mt-2" onclick="removeQuestion(this)">Supprimer</button>
@@ -97,36 +94,6 @@
             choicesContainer.querySelector('input').value = '';
         }
     }
-
-    // Pré-remplir les questions lors de l'édition
-    const questions = JSON.parse('{{ questions|tojson|safe }}');
-    window.onload = function () {
-        questions.forEach((q) => {
-            addQuestion(q.text, q.type, q.choices ? q.choices.join(', ') : "", q.id);
-        });
-    };
-
-    // Capture les questions et les insère dans le champ caché
-    document.querySelector('#survey-form').onsubmit = function () {
-        const allQuestions = [];
-        document.querySelectorAll('.question-item').forEach((item) => {
-            const text = item.querySelector('[name="question_text[]"]').value;
-            const type = item.querySelector('[name="question_type[]"]').value;
-            const choices = item.querySelector('[name="question_choices[]"]').value;
-            const id = item.querySelector('[name="question_id[]"]').value || '';
-
-            const question = {
-                id: id || new Date().getTime(),
-                text: text,
-                type: type,
-                choices: choices ? choices.split(',') : []
-            };
-            allQuestions.push(question);
-        });
-
-        document.querySelector('#questions-field').value = JSON.stringify(allQuestions);
-    };
 </script>
 
 {% endblock %}
-
