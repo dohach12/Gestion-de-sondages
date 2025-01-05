@@ -42,6 +42,8 @@
         {% endfor %}
     </div>
 
+    <input type="hidden" name="questions" id="questions-field">
+
     <button type="button" class="btn btn-secondary mt-3" onclick="addQuestion()">Ajouter une Question</button>
 
     <div class="form-group mt-4">
@@ -100,9 +102,31 @@
     const questions = JSON.parse('{{ questions|tojson|safe }}');
     window.onload = function () {
         questions.forEach((q) => {
-            addQuestion(q.text, q.type, q.choices || "", q.id);
+            addQuestion(q.text, q.type, q.choices ? q.choices.join(', ') : "", q.id);
         });
+    };
+
+    // Capture les questions et les insère dans le champ caché
+    document.querySelector('#survey-form').onsubmit = function () {
+        const allQuestions = [];
+        document.querySelectorAll('.question-item').forEach((item) => {
+            const text = item.querySelector('[name="question_text[]"]').value;
+            const type = item.querySelector('[name="question_type[]"]').value;
+            const choices = item.querySelector('[name="question_choices[]"]').value;
+            const id = item.querySelector('[name="question_id[]"]').value || '';
+
+            const question = {
+                id: id || new Date().getTime(),
+                text: text,
+                type: type,
+                choices: choices ? choices.split(',') : []
+            };
+            allQuestions.push(question);
+        });
+
+        document.querySelector('#questions-field').value = JSON.stringify(allQuestions);
     };
 </script>
 
 {% endblock %}
+

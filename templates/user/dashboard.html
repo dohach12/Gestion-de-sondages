@@ -54,6 +54,11 @@
             <div class="survey-card">
                 <h3>{{ response.survey.title }}</h3>
                 <p class="survey-meta">Répondu le: {{ response.submitted_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                <div class="card-footer">
+                    <a href="{{ url_for('view_results', survey_id=response.survey.id) }}" class="btn btn-info">
+                        <i class="fas fa-chart-bar"></i> Voir les résultats
+                    </a>
+                </div>
             </div>
             {% endfor %}
         </div>
